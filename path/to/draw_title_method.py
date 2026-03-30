@@ -1,0 +1,1 @@
+def draw_title():\n    # Original code lines 897-936 go here\n    pass
