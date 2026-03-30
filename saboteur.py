@@ -1170,36 +1170,37 @@ class Renderer:
         if not isinstance(card, ActionCard):
             return
 
-        pw, ph = 200, 30 + gs.num_players * 20
+        pw, ph = 200, 46 + gs.num_players * 20
         px = INTERNAL_W // 2 - pw // 2
         py = 80
         pygame.draw.rect(self.surf, C_UI_BG, (px, py, pw, ph))
         pygame.draw.rect(self.surf, C_UI_BORDER, (px, py, pw, ph), 1)
 
-        header = "Select target player:"
+        action_label = card.action_type.replace("_", " ").title()
+        header = f"Use {action_label} on:"
         ht = self.font.render(header, True, C_TEXT)
         self.surf.blit(ht, (px + 8, py + 4))
 
         for i, p in enumerate(gs.players):
             col = C_TEXT
-            clickable = True
             if card.is_break():
                 tool = card.break_tool()
                 if tool in p.broken_tools:
                     col = C_DISABLED
-                    clickable = False
             elif card.is_fix():
                 tools = card.fix_tools()
                 has_match = any(t in p.broken_tools for t in tools)
                 if not has_match:
                     col = C_DISABLED
-                    clickable = False
 
             label = f"[{i + 1}] {p.name}"
             if p.broken_tools:
                 label += " (X:" + ",".join(TOOL_ICON[t] for t in p.broken_tools) + ")"
             txt = self.font.render(label, True, col)
             self.surf.blit(txt, (px + 12, py + 20 + i * 20))
+
+        cancel = self.font.render("Click outside to cancel", True, C_TEXT_DIM)
+        self.surf.blit(cancel, (px + pw // 2 - cancel.get_width() // 2, py + ph - 14))
 
     def draw_round_end(self, gs):
         self.surf.fill(C_BG)
@@ -1394,28 +1395,35 @@ class Game:
 
         player = self.gs.players[0]
 
-        if self.target_mode:
-            self._handle_target_click(mx, my)
-            return
-
-        if self.phase in ("rockfall", "map_select"):
-            self._handle_board_action_click(mx, my)
-            return
-
         hand_y = INTERNAL_H - Renderer.HAND_H + 16
         cs = Renderer.HAND_CARD_S
         total_w = len(player.hand) * (cs + 4) - 4
         start_x = max(4, INTERNAL_W // 2 - total_w // 2)
 
-        if hand_y <= my <= hand_y + cs + 4:
+        if hand_y - 6 <= my <= hand_y + cs + 4:
             for i in range(len(player.hand)):
-                cx = start_x + i * (cs + 4)
-                if cx <= mx <= cx + cs:
+                card_x = start_x + i * (cs + 4)
+                if card_x <= mx <= card_x + cs:
                     if i == self.selected_card:
                         self._cancel_selection()
                     else:
                         self._select_card(i)
                     return
+
+        if self.target_mode:
+            pw = 200
+            ph = 46 + self.gs.num_players * 20
+            popup_x = INTERNAL_W // 2 - pw // 2
+            popup_y = 80
+            if popup_x <= mx <= popup_x + pw and popup_y <= my <= popup_y + ph:
+                self._handle_target_click(mx, my)
+            else:
+                self._cancel_selection()
+            return
+
+        if self.phase in ("rockfall", "map_select"):
+            self._handle_board_action_click(mx, my)
+            return
 
         if self.phase == "placing" and self.hover_grid:
             if self.hover_grid in self.valid_positions:
@@ -1431,16 +1439,20 @@ class Game:
         if self.gs.current_player != 0:
             return
 
+        if self.target_mode or self.phase in ("rockfall", "map_select", "placing"):
+            self._cancel_selection()
+            return
+
         player = self.gs.players[0]
         hand_y = INTERNAL_H - Renderer.HAND_H + 16
         cs = Renderer.HAND_CARD_S
         total_w = len(player.hand) * (cs + 4) - 4
         start_x = max(4, INTERNAL_W // 2 - total_w // 2)
 
-        if hand_y <= my <= hand_y + cs + 4:
+        if hand_y - 6 <= my <= hand_y + cs + 4:
             for i in range(len(player.hand)):
-                cx = start_x + i * (cs + 4)
-                if cx <= mx <= cx + cs:
+                card_x = start_x + i * (cs + 4)
+                if card_x <= mx <= card_x + cs:
                     self.gs.pass_turn(0, i)
                     self.gs.add_message("You discard a card")
                     self._end_human_turn()
@@ -1515,6 +1527,7 @@ class Game:
         player = self.gs.players[0]
         card = player.hand[idx]
         self.selected_card = idx
+        self.target_mode = False
 
         if isinstance(card, PathCard):
             if not player.can_place_path():
