@@ -369,8 +369,9 @@ class Player:
 # ══════════════════════════════════════════════════════════════
 
 class GameState:
-    def __init__(self, num_players):
+    def __init__(self, num_players, num_humans=1):
         self.num_players = num_players
+        self.num_humans = min(num_humans, num_players)
         self.players = []
         self.board = {}
         self.goals = {}
@@ -385,9 +386,14 @@ class GameState:
         self.messages = deque(maxlen=6)
         self.first_player = 0
 
+        human_names = ["Player 1", "Player 2"]
         for i in range(num_players):
-            name = "You" if i == 0 else DWARF_NAMES[i % len(DWARF_NAMES)]
-            p = Player(i, name, is_human=(i == 0))
+            if i < self.num_humans:
+                name = human_names[i] if i < len(human_names) else f"Player {i+1}"
+                p = Player(i, name, is_human=True)
+            else:
+                name = DWARF_NAMES[i % len(DWARF_NAMES)]
+                p = Player(i, name, is_human=False)
             self.players.append(p)
 
         self.gold_deck = create_gold_deck()
@@ -935,28 +941,42 @@ class Renderer:
         ver = self.font.render("v1.0 - Retro Edition", True, (80, 80, 80))
         self.surf.blit(ver, (INTERNAL_W // 2 - ver.get_width() // 2, 355))
 
-    def draw_setup(self, num_players):
+    def draw_setup(self, num_players, num_humans, setup_row):
         self.surf.fill(C_BG)
         title = self.font_lg.render("GAME SETUP", True, C_GOLD)
         self.surf.blit(title, (INTERNAL_W // 2 - title.get_width() // 2, 40))
 
-        pygame.draw.rect(self.surf, C_UI_BORDER, (140, 100, 232, 40), 2)
-        txt = self.font_lg.render(f"Players:  < {num_players} >", True, C_TEXT)
-        self.surf.blit(txt, (INTERNAL_W // 2 - txt.get_width() // 2, 110))
+        row0_col = C_SELECT if setup_row == 0 else C_TEXT
+        row1_col = C_SELECT if setup_row == 1 else C_TEXT
+        marker = "> " if True else "  "
+
+        lbl0 = f"{'> ' if setup_row == 0 else '  '}Total Players:  < {num_players} >"
+        lbl1 = f"{'> ' if setup_row == 1 else '  '}Human Players:  < {num_humans} >"
+
+        pygame.draw.rect(self.surf, C_UI_BORDER if setup_row == 0 else C_UI_BG, (120, 88, 272, 30), 2)
+        pygame.draw.rect(self.surf, C_UI_BORDER if setup_row == 1 else C_UI_BG, (120, 124, 272, 30), 2)
+
+        txt0 = self.font_lg.render(lbl0, True, row0_col)
+        txt1 = self.font_lg.render(lbl1, True, row1_col)
+        self.surf.blit(txt0, (INTERNAL_W // 2 - txt0.get_width() // 2, 93))
+        self.surf.blit(txt1, (INTERNAL_W // 2 - txt1.get_width() // 2, 129))
 
         sab, miners = ROLE_DISTRIBUTION[num_players]
         info = self.font.render(f"{miners} Miners  /  {sab} Saboteur{'s' if sab > 1 else ''}", True, C_TEXT_DIM)
-        self.surf.blit(info, (INTERNAL_W // 2 - info.get_width() // 2, 155))
+        self.surf.blit(info, (INTERNAL_W // 2 - info.get_width() // 2, 170))
 
         hand_info = self.font.render(f"Cards per player: {HAND_SIZES[num_players]}", True, C_TEXT_DIM)
-        self.surf.blit(hand_info, (INTERNAL_W // 2 - hand_info.get_width() // 2, 175))
+        self.surf.blit(hand_info, (INTERNAL_W // 2 - hand_info.get_width() // 2, 186))
 
         blink = self.tick % 60 < 40
         if blink:
-            go = self.font_md.render("ENTER to start  |  LEFT/RIGHT to change", True, C_TEXT)
-            self.surf.blit(go, (INTERNAL_W // 2 - go.get_width() // 2, 240))
+            go = self.font_md.render("ENTER to start  |  UP/DOWN select row", True, C_TEXT)
+            self.surf.blit(go, (INTERNAL_W // 2 - go.get_width() // 2, 230))
 
-        hint = self.font.render("You are Player 1 (human). Others are AI.", True, C_TEXT_DIM)
+        if num_humans == 1:
+            hint = self.font.render("Solo mode: You vs AI bots.", True, C_TEXT_DIM)
+        else:
+            hint = self.font.render(f"{num_humans} humans share this device (hot-seat).", True, C_TEXT_DIM)
         self.surf.blit(hint, (INTERNAL_W // 2 - hint.get_width() // 2, 300))
 
     def draw_game(self, gs, cam_x, cam_y, selected_card_idx, valid_positions, hover_grid,
@@ -1091,7 +1111,7 @@ class Renderer:
         pygame.draw.rect(self.surf, C_UI_BORDER, board_rect, 1)
 
     def _draw_hand(self, gs, selected_idx, phase):
-        player = gs.players[0]
+        player = gs.players[gs.current_player]
         hand_y = INTERNAL_H - self.HAND_H
         pygame.draw.rect(self.surf, C_HAND_BG, (0, hand_y, INTERNAL_W, self.HAND_H))
         pygame.draw.line(self.surf, C_UI_BORDER, (0, hand_y), (INTERNAL_W, hand_y))
@@ -1163,7 +1183,7 @@ class Renderer:
         self.surf.blit(hint, (px + pw // 2 - hint.get_width() // 2, py + 55))
 
     def _draw_target_selector(self, gs, selected_idx):
-        player = gs.players[0]
+        player = gs.players[gs.current_player]
         if selected_idx is None or selected_idx >= len(player.hand):
             return
         card = player.hand[selected_idx]
@@ -1201,6 +1221,29 @@ class Renderer:
 
         cancel = self.font.render("Click outside to cancel", True, C_TEXT_DIM)
         self.surf.blit(cancel, (px + pw // 2 - cancel.get_width() // 2, py + ph - 14))
+
+    def draw_pass_device(self, player_name):
+        self.surf.fill(C_BG)
+
+        pw, ph = 300, 120
+        px = INTERNAL_W // 2 - pw // 2
+        py = INTERNAL_H // 2 - ph // 2
+        pygame.draw.rect(self.surf, C_UI_BG, (px, py, pw, ph))
+        pygame.draw.rect(self.surf, C_GOLD, (px, py, pw, ph), 2)
+
+        header = self.font_lg.render("PASS THE DEVICE", True, C_GOLD)
+        self.surf.blit(header, (INTERNAL_W // 2 - header.get_width() // 2, py + 15))
+
+        name_txt = self.font_xl.render(player_name, True, C_TEXT)
+        self.surf.blit(name_txt, (INTERNAL_W // 2 - name_txt.get_width() // 2, py + 45))
+
+        blink = self.tick % 60 < 40
+        if blink:
+            hint = self.font_md.render("Press ENTER when ready", True, C_TEXT_DIM)
+            self.surf.blit(hint, (INTERNAL_W // 2 - hint.get_width() // 2, py + 85))
+
+        warn = self.font.render("Don't peek at the other player's cards!", True, C_SABOTEUR)
+        self.surf.blit(warn, (INTERNAL_W // 2 - warn.get_width() // 2, py + ph + 20))
 
     def draw_round_end(self, gs):
         self.surf.fill(C_BG)
@@ -1282,6 +1325,8 @@ class Game:
 
         self.state = "title"
         self.num_players = 4
+        self.num_humans = 1
+        self.setup_row = 0
         self.gs = None
 
         self.cam_x = 0
@@ -1320,11 +1365,15 @@ class Game:
                 if ev.key == pygame.K_ESCAPE:
                     if self.state == "game" and self.phase != "select":
                         self._cancel_selection()
+                    elif self.state == "game" and self.target_mode:
+                        self._cancel_selection()
                     elif self.state in ("title", "game_end"):
                         pygame.quit()
                         sys.exit()
                     elif self.state == "setup":
                         self.state = "title"
+                    elif self.state == "pass_device":
+                        self.state = "game"
                     elif self.state == "game":
                         self.state = "title"
 
@@ -1333,21 +1382,37 @@ class Game:
                         self.state = "setup"
                     elif self.state == "setup":
                         self._start_game()
+                    elif self.state == "pass_device":
+                        self.state = "game"
                     elif self.state == "round_end":
                         if self.gs.round_num < 3:
                             self.gs.setup_round()
                             self.state = "game"
                             self._reset_turn_state()
+                            cp = self.gs.players[self.gs.current_player]
+                            if cp.is_human and self.gs.num_humans > 1:
+                                self.state = "pass_device"
                         else:
                             self.state = "game_end"
                     elif self.state == "game_end":
                         self.state = "title"
 
                 elif self.state == "setup":
-                    if ev.key in (pygame.K_LEFT, pygame.K_a):
-                        self.num_players = max(3, self.num_players - 1)
+                    if ev.key in (pygame.K_UP, pygame.K_w):
+                        self.setup_row = 0
+                    elif ev.key in (pygame.K_DOWN, pygame.K_s):
+                        self.setup_row = 1
+                    elif ev.key in (pygame.K_LEFT, pygame.K_a):
+                        if self.setup_row == 0:
+                            self.num_players = max(3, self.num_players - 1)
+                            self.num_humans = min(self.num_humans, self.num_players)
+                        else:
+                            self.num_humans = max(1, self.num_humans - 1)
                     elif ev.key in (pygame.K_RIGHT, pygame.K_d):
-                        self.num_players = min(10, self.num_players + 1)
+                        if self.setup_row == 0:
+                            self.num_players = min(10, self.num_players + 1)
+                        else:
+                            self.num_humans = min(self.num_humans + 1, min(2, self.num_players))
 
                 elif self.state == "game":
                     self._handle_game_key(ev.key)
@@ -1363,6 +1428,9 @@ class Game:
                 mx, my = ev.pos[0] // SCALE, ev.pos[1] // SCALE
                 self._handle_mouse_move(mx, my)
 
+    def _cur_is_human(self):
+        return self.gs and self.gs.players[self.gs.current_player].is_human
+
     def _handle_game_key(self, key):
         cam_speed = 8
         if key == pygame.K_LEFT or key == pygame.K_a:
@@ -1374,26 +1442,27 @@ class Game:
         elif key == pygame.K_DOWN or key == pygame.K_s:
             self.cam_y += cam_speed * 4
         elif key == pygame.K_r:
-            if self.gs and self.gs.current_player == 0:
+            if self._cur_is_human():
                 self._rotate_selected()
         elif key == pygame.K_SPACE:
-            if self.gs and self.gs.current_player == 0 and self.map_reveal is not None:
+            if self._cur_is_human() and self.map_reveal is not None:
                 self.map_reveal = None
                 self.map_reveal_timer = 0
 
     def _handle_left_click(self, mx, my):
         if self.gs is None or self.gs.round_over:
             return
-        if self.gs.current_player != 0:
+        if not self._cur_is_human():
             return
+
+        pi = self.gs.current_player
+        player = self.gs.players[pi]
 
         if self.map_reveal is not None:
             self.map_reveal = None
             self.map_reveal_timer = 0
             self._end_human_turn()
             return
-
-        player = self.gs.players[0]
 
         hand_y = INTERNAL_H - Renderer.HAND_H + 16
         cs = Renderer.HAND_CARD_S
@@ -1428,22 +1497,23 @@ class Game:
         if self.phase == "placing" and self.hover_grid:
             if self.hover_grid in self.valid_positions:
                 card = player.hand[self.selected_card]
-                found = self.gs.place_card(0, card, self.hover_grid)
-                self.gs.add_message(f"You build a tunnel")
+                self.gs.place_card(pi, card, self.hover_grid)
+                self.gs.add_message(f"{player.name} builds a tunnel")
                 self._end_human_turn()
                 return
 
     def _handle_right_click(self, mx, my):
         if self.gs is None or self.gs.round_over:
             return
-        if self.gs.current_player != 0:
+        if not self._cur_is_human():
             return
 
         if self.target_mode or self.phase in ("rockfall", "map_select", "placing"):
             self._cancel_selection()
             return
 
-        player = self.gs.players[0]
+        pi = self.gs.current_player
+        player = self.gs.players[pi]
         hand_y = INTERNAL_H - Renderer.HAND_H + 16
         cs = Renderer.HAND_CARD_S
         total_w = len(player.hand) * (cs + 4) - 4
@@ -1453,8 +1523,8 @@ class Game:
             for i in range(len(player.hand)):
                 card_x = start_x + i * (cs + 4)
                 if card_x <= mx <= card_x + cs:
-                    self.gs.pass_turn(0, i)
-                    self.gs.add_message("You discard a card")
+                    self.gs.pass_turn(pi, i)
+                    self.gs.add_message(f"{player.name} discards a card")
                     self._end_human_turn()
                     return
 
@@ -1474,7 +1544,8 @@ class Game:
     def _handle_board_action_click(self, mx, my):
         if not self.hover_grid:
             return
-        player = self.gs.players[0]
+        pi = self.gs.current_player
+        player = self.gs.players[pi]
         card = player.hand[self.selected_card]
 
         if self.phase == "rockfall":
@@ -1482,23 +1553,24 @@ class Game:
             if pos in self.gs.board and pos != START_POS:
                 bc = self.gs.board[pos]
                 if not isinstance(bc, (StartCard, GoalCard)):
-                    self.gs.play_rockfall(0, card, pos)
-                    self.gs.add_message("You cause a rockfall!")
+                    self.gs.play_rockfall(pi, card, pos)
+                    self.gs.add_message(f"{player.name} causes a rockfall!")
                     self._end_human_turn()
 
         elif self.phase == "map_select":
             pos = self.hover_grid
             if pos in self.gs.goals and not self.gs.goals[pos].revealed:
-                result = self.gs.play_map(0, card, pos)
+                result = self.gs.play_map(pi, card, pos)
                 if result is not None:
                     self.map_reveal = result
                     self.map_reveal_timer = 90
-                    self.gs.add_message("You check the map...")
+                    self.gs.add_message(f"{player.name} checks the map...")
                     self.phase = "select"
                     self.selected_card = None
 
     def _handle_target_click(self, mx, my):
-        player = self.gs.players[0]
+        pi = self.gs.current_player
+        player = self.gs.players[pi]
         card = player.hand[self.selected_card]
 
         pw, ph = 200, 30 + self.gs.num_players * 20
@@ -1511,20 +1583,20 @@ class Game:
                 if card.is_break():
                     tool = card.break_tool()
                     if tool not in p.broken_tools:
-                        if self.gs.play_break(0, card, i):
-                            self.gs.add_message(f"You break {p.name}'s {tool}!")
+                        if self.gs.play_break(pi, card, i):
+                            self.gs.add_message(f"{player.name} breaks {p.name}'s {tool}!")
                             self.target_mode = False
                             self._end_human_turn()
                 elif card.is_fix():
-                    if self.gs.play_fix(0, card, i):
-                        tname = "your" if i == 0 else f"{p.name}'s"
-                        self.gs.add_message(f"You fix {tname} tools")
+                    if self.gs.play_fix(pi, card, i):
+                        tname = f"{p.name}'s"
+                        self.gs.add_message(f"{player.name} fixes {tname} tools")
                         self.target_mode = False
                         self._end_human_turn()
                 return
 
     def _select_card(self, idx):
-        player = self.gs.players[0]
+        player = self.gs.players[self.gs.current_player]
         card = player.hand[idx]
         self.selected_card = idx
         self.target_mode = False
@@ -1559,7 +1631,7 @@ class Game:
     def _rotate_selected(self):
         if self.selected_card is None:
             return
-        player = self.gs.players[0]
+        player = self.gs.players[self.gs.current_player]
         if self.selected_card >= len(player.hand):
             return
         card = player.hand[self.selected_card]
@@ -1583,7 +1655,11 @@ class Game:
             self.state = "round_end"
             return
         self.gs.next_turn()
-        if self.gs.current_player != 0:
+        cp = self.gs.players[self.gs.current_player]
+        if cp.is_human:
+            if self.gs.num_humans > 1:
+                self.state = "pass_device"
+        else:
             self.ai_timer = self.AI_DELAY
 
     def _reset_turn_state(self):
@@ -1593,14 +1669,18 @@ class Game:
         self.ai_timer = 0
         self.map_reveal = None
         self.map_reveal_timer = 0
-        if self.gs.current_player != 0:
+        cp = self.gs.players[self.gs.current_player]
+        if not cp.is_human:
             self.ai_timer = self.AI_DELAY
 
     def _start_game(self):
-        self.gs = GameState(self.num_players)
+        self.gs = GameState(self.num_players, self.num_humans)
         self.gs.setup_round()
         self.state = "game"
         self._reset_turn_state()
+        cp = self.gs.players[self.gs.current_player]
+        if cp.is_human and self.num_humans > 1:
+            self.state = "pass_device"
 
     def _update(self):
         if self.map_reveal_timer > 0:
@@ -1612,11 +1692,11 @@ class Game:
         if self.gs.round_over:
             return
 
-        if self.gs.current_player == 0:
-            player = self.gs.players[0]
-            if not player.hand and not self.gs.deck:
-                self.gs.pass_turn(0)
-                self.gs.add_message("You have no cards")
+        cp = self.gs.players[self.gs.current_player]
+        if cp.is_human:
+            if not cp.hand and not self.gs.deck:
+                self.gs.pass_turn(self.gs.current_player)
+                self.gs.add_message(f"{cp.name} has no cards")
                 self._end_human_turn()
             return
 
@@ -1634,14 +1714,21 @@ class Game:
             return
 
         self.gs.next_turn()
-        if self.gs.current_player != 0:
+        next_cp = self.gs.players[self.gs.current_player]
+        if next_cp.is_human:
+            if self.gs.num_humans > 1:
+                self.state = "pass_device"
+        else:
             self.ai_timer = self.AI_DELAY
 
     def _render(self):
         if self.state == "title":
             self.renderer.draw_title()
         elif self.state == "setup":
-            self.renderer.draw_setup(self.num_players)
+            self.renderer.draw_setup(self.num_players, self.num_humans, self.setup_row)
+        elif self.state == "pass_device":
+            cp = self.gs.players[self.gs.current_player]
+            self.renderer.draw_pass_device(cp.name)
         elif self.state == "game":
             self.renderer.draw_game(
                 self.gs, self.cam_x, self.cam_y,
