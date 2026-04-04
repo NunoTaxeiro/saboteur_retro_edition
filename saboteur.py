@@ -1436,15 +1436,25 @@ class Game:
 
                 elif self.state == "setup":
                     if ev.key in (pygame.K_UP, pygame.K_w):
-                        self.setup_row = (self.setup_row - 1) % 4
+                        if self.num_humans == 2:
+                            self.setup_row = (self.setup_row - 1) % 4
+                        else:
+                            self.setup_row = (self.setup_row - 1) % 3
                     elif ev.key in (pygame.K_DOWN, pygame.K_s):
-                        self.setup_row = (self.setup_row + 1) % 4
+                        if self.num_humans == 2:
+                            self.setup_row = (self.setup_row + 1) % 4
+                        else:
+                            self.setup_row = (self.setup_row + 1) % 3
                     elif ev.key in (pygame.K_LEFT, pygame.K_a):
                         if self.setup_row == 0:
                             self.num_players = max(3, self.num_players - 1)
                             self.num_humans = min(self.num_humans, self.num_players)
+                            if self.num_humans < 2 and self.setup_row == 3:
+                                self.setup_row = 1
                         elif self.setup_row == 1:
                             self.num_humans = max(1, self.num_humans - 1)
+                            if self.num_humans < 2 and self.setup_row == 3:
+                                self.setup_row = 1
                     elif ev.key in (pygame.K_RIGHT, pygame.K_d):
                         if self.setup_row == 0:
                             self.num_players = min(10, self.num_players + 1)
@@ -1453,11 +1463,13 @@ class Game:
                     elif ev.key == pygame.K_BACKSPACE:
                         if self.setup_row == 2 and self.player1_name:
                             self.player1_name = self.player1_name[:-1]
-                        elif self.setup_row == 3 and self.player2_name:
+                        elif self.setup_row == 3 and self.num_humans == 2 and self.player2_name:
                             self.player2_name = self.player2_name[:-1]
                     elif ev.key == pygame.K_r:
                         self._reset_setup_names()
                     elif self.setup_row in (2, 3):
+                        if self.setup_row == 3 and self.num_humans < 2:
+                            continue
                         ch = ev.unicode
                         if ch and ch in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-":
                             if self.setup_row == 2 and len(self.player1_name) < 12:
