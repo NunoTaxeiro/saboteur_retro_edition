@@ -369,7 +369,7 @@ class Player:
 # ══════════════════════════════════════════════════════════════
 
 class GameState:
-    def __init__(self, num_players, num_humans=1):
+    def __init__(self, num_players, num_humans=1, human_names=None):
         self.num_players = num_players
         self.num_humans = min(num_humans, num_players)
         self.players = []
@@ -386,7 +386,17 @@ class GameState:
         self.messages = deque(maxlen=6)
         self.first_player = 0
 
-        human_names = ["Player 1", "Player 2"]
+        if human_names is None:
+            human_names = ["Player 1", "Player 2"]
+        else:
+            # Keep predictable defaults if empty names are passed.
+            human_names = [
+                (name.strip() if isinstance(name, str) and name.strip() else f"Player {i+1}")
+                for i, name in enumerate(human_names[:2])
+            ]
+            while len(human_names) < 2:
+                human_names.append(f"Player {len(human_names) + 1}")
+
         for i in range(num_players):
             if i < self.num_humans:
                 name = human_names[i] if i < len(human_names) else f"Player {i+1}"
@@ -941,7 +951,7 @@ class Renderer:
         ver = self.font.render("v1.0 - Retro Edition", True, (80, 80, 80))
         self.surf.blit(ver, (INTERNAL_W // 2 - ver.get_width() // 2, 355))
 
-    def draw_setup(self, num_players, num_humans, setup_row):
+    def draw_setup(self, num_players, num_humans, setup_row, player1_name, player2_name):
         self.surf.fill(C_BG)
         title = self.font_lg.render("GAME SETUP", True, C_GOLD)
         self.surf.blit(title, (INTERNAL_W // 2 - title.get_width() // 2, 40))
@@ -952,32 +962,41 @@ class Renderer:
 
         lbl0 = f"{'> ' if setup_row == 0 else '  '}Total Players:  < {num_players} >"
         lbl1 = f"{'> ' if setup_row == 1 else '  '}Human Players:  < {num_humans} >"
+        lbl2 = f"{'> ' if setup_row == 2 else '  '}Player 1 Name: {player1_name}"
+        lbl3 = f"{'> ' if setup_row == 3 else '  '}Player 2 Name: {player2_name}"
 
         pygame.draw.rect(self.surf, C_UI_BORDER if setup_row == 0 else C_UI_BG, (120, 88, 272, 30), 2)
         pygame.draw.rect(self.surf, C_UI_BORDER if setup_row == 1 else C_UI_BG, (120, 124, 272, 30), 2)
+        pygame.draw.rect(self.surf, C_UI_BORDER if setup_row == 2 else C_UI_BG, (120, 160, 272, 30), 2)
+        pygame.draw.rect(self.surf, C_UI_BORDER if setup_row == 3 else C_UI_BG, (120, 196, 272, 30), 2)
 
         txt0 = self.font_lg.render(lbl0, True, row0_col)
         txt1 = self.font_lg.render(lbl1, True, row1_col)
+        txt2 = self.font_lg.render(lbl2[:34], True, C_SELECT if setup_row == 2 else C_TEXT)
+        txt3_col = C_SELECT if setup_row == 3 else (C_TEXT if num_humans > 1 else C_TEXT_DIM)
+        txt3 = self.font_lg.render(lbl3[:34], True, txt3_col)
         self.surf.blit(txt0, (INTERNAL_W // 2 - txt0.get_width() // 2, 93))
         self.surf.blit(txt1, (INTERNAL_W // 2 - txt1.get_width() // 2, 129))
+        self.surf.blit(txt2, (INTERNAL_W // 2 - txt2.get_width() // 2, 165))
+        self.surf.blit(txt3, (INTERNAL_W // 2 - txt3.get_width() // 2, 201))
 
         sab, miners = ROLE_DISTRIBUTION[num_players]
         info = self.font.render(f"{miners} Miners  /  {sab} Saboteur{'s' if sab > 1 else ''}", True, C_TEXT_DIM)
-        self.surf.blit(info, (INTERNAL_W // 2 - info.get_width() // 2, 170))
+        self.surf.blit(info, (INTERNAL_W // 2 - info.get_width() // 2, 240))
 
         hand_info = self.font.render(f"Cards per player: {HAND_SIZES[num_players]}", True, C_TEXT_DIM)
-        self.surf.blit(hand_info, (INTERNAL_W // 2 - hand_info.get_width() // 2, 186))
+        self.surf.blit(hand_info, (INTERNAL_W // 2 - hand_info.get_width() // 2, 256))
 
         blink = self.tick % 60 < 40
         if blink:
-            go = self.font_md.render("ENTER to start  |  UP/DOWN select row", True, C_TEXT)
-            self.surf.blit(go, (INTERNAL_W // 2 - go.get_width() // 2, 230))
+            go = self.font_md.render("ENTER start | UP/DOWN row | type | R reset names", True, C_TEXT)
+            self.surf.blit(go, (INTERNAL_W // 2 - go.get_width() // 2, 294))
 
         if num_humans == 1:
             hint = self.font.render("Solo mode: You vs AI bots.", True, C_TEXT_DIM)
         else:
             hint = self.font.render(f"{num_humans} humans share this device (hot-seat).", True, C_TEXT_DIM)
-        self.surf.blit(hint, (INTERNAL_W // 2 - hint.get_width() // 2, 300))
+        self.surf.blit(hint, (INTERNAL_W // 2 - hint.get_width() // 2, 332))
 
     def draw_game(self, gs, cam_x, cam_y, selected_card_idx, valid_positions, hover_grid,
                   phase, target_mode, map_reveal, map_reveal_timer):
@@ -1339,6 +1358,8 @@ class Game:
         self.num_players = 4
         self.num_humans = 1
         self.setup_row = 0
+        self.player1_name = "Player 1"
+        self.player2_name = "Player 2"
         self.gs = None
 
         self.cam_x = 0
@@ -1352,6 +1373,10 @@ class Game:
         self.map_reveal_timer = 0
         self.ai_timer = 0
         self.AI_DELAY = 18
+
+    def _reset_setup_names(self):
+        self.player1_name = "Player 1"
+        self.player2_name = "Player 2"
 
     def _make_scanlines(self):
         s = pygame.Surface((WIN_W, WIN_H), pygame.SRCALPHA)
@@ -1411,20 +1436,34 @@ class Game:
 
                 elif self.state == "setup":
                     if ev.key in (pygame.K_UP, pygame.K_w):
-                        self.setup_row = 0
+                        self.setup_row = (self.setup_row - 1) % 4
                     elif ev.key in (pygame.K_DOWN, pygame.K_s):
-                        self.setup_row = 1
+                        self.setup_row = (self.setup_row + 1) % 4
                     elif ev.key in (pygame.K_LEFT, pygame.K_a):
                         if self.setup_row == 0:
                             self.num_players = max(3, self.num_players - 1)
                             self.num_humans = min(self.num_humans, self.num_players)
-                        else:
+                        elif self.setup_row == 1:
                             self.num_humans = max(1, self.num_humans - 1)
                     elif ev.key in (pygame.K_RIGHT, pygame.K_d):
                         if self.setup_row == 0:
                             self.num_players = min(10, self.num_players + 1)
-                        else:
+                        elif self.setup_row == 1:
                             self.num_humans = min(self.num_humans + 1, min(2, self.num_players))
+                    elif ev.key == pygame.K_BACKSPACE:
+                        if self.setup_row == 2 and self.player1_name:
+                            self.player1_name = self.player1_name[:-1]
+                        elif self.setup_row == 3 and self.player2_name:
+                            self.player2_name = self.player2_name[:-1]
+                    elif ev.key == pygame.K_r:
+                        self._reset_setup_names()
+                    elif self.setup_row in (2, 3):
+                        ch = ev.unicode
+                        if ch and ch in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-":
+                            if self.setup_row == 2 and len(self.player1_name) < 12:
+                                self.player1_name += ch
+                            elif self.setup_row == 3 and len(self.player2_name) < 12:
+                                self.player2_name += ch
 
                 elif self.state == "game":
                     self._handle_game_key(ev.key)
@@ -1686,7 +1725,8 @@ class Game:
             self.ai_timer = self.AI_DELAY
 
     def _start_game(self):
-        self.gs = GameState(self.num_players, self.num_humans)
+        names = [self.player1_name.strip(), self.player2_name.strip()]
+        self.gs = GameState(self.num_players, self.num_humans, names)
         self.gs.setup_round()
         self.state = "game"
         self._reset_turn_state()
@@ -1737,7 +1777,13 @@ class Game:
         if self.state == "title":
             self.renderer.draw_title()
         elif self.state == "setup":
-            self.renderer.draw_setup(self.num_players, self.num_humans, self.setup_row)
+            self.renderer.draw_setup(
+                self.num_players,
+                self.num_humans,
+                self.setup_row,
+                self.player1_name,
+                self.player2_name,
+            )
         elif self.state == "pass_device":
             cp = self.gs.players[self.gs.current_player]
             self.renderer.draw_pass_device(cp.name)
