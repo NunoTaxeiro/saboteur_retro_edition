@@ -1124,40 +1124,52 @@ class Renderer:
         role_txt = self.font.render(f"Role: {player.role.upper()}", True, role_col)
         self.surf.blit(role_txt, (4, hand_y + 2))
 
-        help_text = "Click card, then board | R=rotate | Right-click=discard"
-        ht = self.font.render(help_text, True, C_TEXT_DIM)
-        self.surf.blit(ht, (INTERNAL_W - ht.get_width() - 4, hand_y + 2))
+        if player.is_human:
+            help_text = "Click card, then board | R=rotate | Right-click=discard"
+            ht = self.font.render(help_text, True, C_TEXT_DIM)
+            self.surf.blit(ht, (INTERNAL_W - ht.get_width() - 4, hand_y + 2))
 
-        for i, card in enumerate(player.hand):
-            x = start_x + i * (cs + 4)
-            y = hand_y + 16
+            for i, card in enumerate(player.hand):
+                x = start_x + i * (cs + 4)
+                y = hand_y + 16
 
-            is_sel = i == selected_idx
-            if is_sel:
-                y -= 4
+                is_sel = i == selected_idx
+                if is_sel:
+                    y -= 4
 
-            disabled = False
-            if isinstance(card, PathCard) and not player.can_place_path():
-                disabled = True
+                disabled = False
+                if isinstance(card, PathCard) and not player.can_place_path():
+                    disabled = True
 
-            if isinstance(card, PathCard):
-                card_surf = self.draw_card_on_surface(card, size=cs)
-            else:
-                card_surf = self.draw_action_card_surface(card, size=cs)
+                if isinstance(card, PathCard):
+                    card_surf = self.draw_card_on_surface(card, size=cs)
+                else:
+                    card_surf = self.draw_action_card_surface(card, size=cs)
 
-            if disabled:
-                dark = pygame.Surface((cs, cs), pygame.SRCALPHA)
-                dark.fill((0, 0, 0, 120))
-                card_surf.blit(dark, (0, 0))
+                if disabled:
+                    dark = pygame.Surface((cs, cs), pygame.SRCALPHA)
+                    dark.fill((0, 0, 0, 120))
+                    card_surf.blit(dark, (0, 0))
 
-            self.surf.blit(card_surf, (x, y))
+                self.surf.blit(card_surf, (x, y))
 
-            if is_sel:
-                pygame.draw.rect(self.surf, C_SELECT, (x - 1, y - 1, cs + 2, cs + 2), 2)
+                if is_sel:
+                    pygame.draw.rect(self.surf, C_SELECT, (x - 1, y - 1, cs + 2, cs + 2), 2)
 
-            if isinstance(card, PathCard) and card.flipped:
-                ft = self.font.render("F", True, C_TEXT_GOLD)
-                self.surf.blit(ft, (x + cs - 8, y))
+                if isinstance(card, PathCard) and card.flipped:
+                    ft = self.font.render("F", True, C_TEXT_GOLD)
+                    self.surf.blit(ft, (x + cs - 8, y))
+        else:
+            info = self.font.render("AI is taking its turn...", True, C_TEXT_DIM)
+            self.surf.blit(info, (INTERNAL_W - info.get_width() - 4, hand_y + 2))
+
+            back = pygame.Surface((cs, cs))
+            back.fill(C_DISABLED)
+            pygame.draw.rect(back, C_UI_BORDER, (0, 0, cs, cs), 1)
+            for i in range(len(player.hand)):
+                x = start_x + i * (cs + 4)
+                y = hand_y + 16
+                self.surf.blit(back, (x, y))
 
     def _draw_messages(self, gs):
         mx = INTERNAL_W - 170
