@@ -15,7 +15,7 @@ from collections import deque
 #  CONSTANTS
 # ══════════════════════════════════════════════════════════════
 
-INTERNAL_W, INTERNAL_H = 512, 384
+INTERNAL_W, INTERNAL_H = 512, 448
 SCALE = 2
 WIN_W, WIN_H = INTERNAL_W * SCALE, INTERNAL_H * SCALE
 FPS = 30
@@ -810,7 +810,7 @@ class AI:
 
 class Renderer:
     TOP_H = 52
-    HAND_H = 76
+    HAND_H = 88
     BOARD_Y = 52
     HAND_CARD_S = 34
 
@@ -1172,8 +1172,10 @@ class Renderer:
 
                 if disabled:
                     dark = pygame.Surface((cs, cs), pygame.SRCALPHA)
-                    dark.fill((0, 0, 0, 120))
+                    dark.fill((0, 0, 0, 70))
                     card_surf.blit(dark, (0, 0))
+                    mark = self.font_md.render("X", True, C_BROKEN)
+                    card_surf.blit(mark, (cs // 2 - mark.get_width() // 2, cs // 2 - mark.get_height() // 2))
 
                 self.surf.blit(card_surf, (x, y))
 
@@ -1188,8 +1190,10 @@ class Renderer:
             self.surf.blit(info, (INTERNAL_W - info.get_width() - 4, hand_y + 2))
 
             back = pygame.Surface((cs, cs))
-            back.fill(C_DISABLED)
+            back.fill((95, 78, 60))
             pygame.draw.rect(back, C_UI_BORDER, (0, 0, cs, cs), 1)
+            q = self.font_md.render("?", True, C_TEXT)
+            back.blit(q, (cs // 2 - q.get_width() // 2, cs // 2 - q.get_height() // 2))
             for i in range(len(player.hand)):
                 x = start_x + i * (cs + 4)
                 y = hand_y + 16
