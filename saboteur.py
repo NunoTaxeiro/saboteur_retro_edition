@@ -1139,8 +1139,13 @@ class Renderer:
         total_w = len(player.hand) * (cs + 4) - 4
         start_x = max(4, INTERNAL_W // 2 - total_w // 2)
 
-        role_col = C_MINER if player.role == "miner" else C_SABOTEUR
-        role_txt = self.font.render(f"Role: {player.role.upper()}", True, role_col)
+        if player.is_human:
+            role_col = C_MINER if player.role == "miner" else C_SABOTEUR
+            role_label = f"Role: {player.role.upper()}"
+        else:
+            role_col = C_TEXT_DIM
+            role_label = "Role: HIDDEN"
+        role_txt = self.font.render(role_label, True, role_col)
         self.surf.blit(role_txt, (4, hand_y + 2))
 
         if player.is_human:
