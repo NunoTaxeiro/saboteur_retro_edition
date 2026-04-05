@@ -10,6 +10,7 @@ import random
 import sys
 import math
 import asyncio
+from array import array
 from collections import deque
 
 # ══════════════════════════════════════════════════════════════
@@ -92,6 +93,144 @@ C_BLACK     = (0, 0, 0)
 C_RED       = (220, 50, 50)
 C_GREEN     = (50, 200, 50)
 C_BLUE      = (50, 100, 220)
+
+# ══════════════════════════════════════════════════════════════
+#  RETRO AUDIO
+# ══════════════════════════════════════════════════════════════
+
+class RetroAudio:
+    """Small synth for 8/16-bit style sounds without external files."""
+
+    SAMPLE_RATE = 22050
+
+    def __init__(self):
+        self.enabled = False
+        self.intro_sound = None
+        self._setup_mixer()
+        if self.enabled:
+            self.intro_sound = self._build_intro_song()
+
+    def _setup_mixer(self):
+        try:
+            if not pygame.mixer.get_init():
+                pygame.mixer.init(frequency=self.SAMPLE_RATE, size=-16, channels=2, buffer=512)
+            self.enabled = True
+        except Exception:
+            self.enabled = False
+
+    def _note_to_freq(self, note_name):
+        if note_name == "R":
+            return 0.0
+        semitones = {
+            "C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5,
+            "F#": 6, "G": 7, "G#": 8, "A": 9, "A#": 10, "B": 11,
+        }
+        if len(note_name) == 2:
+            key = note_name[0]
+            octave = int(note_name[1])
+        else:
+            key = note_name[:2]
+            octave = int(note_name[2])
+        midi = 12 * (octave + 1) + semitones[key]
+        return 440.0 * (2.0 ** ((midi - 69) / 12.0))
+
+    def _osc_square(self, phase):
+        return 1.0 if phase < 0.5 else -1.0
+
+    def _osc_triangle(self, phase):
+        return 4.0 * abs(phase - 0.5) - 1.0
+
+    def _env(self, t, duration):
+        attack = 0.01
+        release = 0.03
+        if t < attack:
+            return t / attack
+        if t > max(attack, duration - release):
+            return max(0.0, (duration - t) / release)
+        return 1.0
+
+    def _render_note(self, freq, duration, wave="square", volume=0.22, pan=0.0):
+        sample_count = max(1, int(duration * self.SAMPLE_RATE))
+        left_gain = volume * (1.0 - max(0.0, pan))
+        right_gain = volume * (1.0 + min(0.0, pan))
+        out = array("h")
+
+        phase = 0.0
+        step = (freq / self.SAMPLE_RATE) if freq > 0.0 else 0.0
+
+        for i in range(sample_count):
+            t = i / self.SAMPLE_RATE
+            env = self._env(t, duration)
+
+            if freq <= 0.0:
+                val = 0.0
+            elif wave == "triangle":
+                val = self._osc_triangle(phase)
+            else:
+                val = self._osc_square(phase)
+
+            val *= env
+            l = int(max(-1.0, min(1.0, val * left_gain)) * 32767)
+            r = int(max(-1.0, min(1.0, val * right_gain)) * 32767)
+            out.append(l)
+            out.append(r)
+
+            phase += step
+            if phase >= 1.0:
+                phase -= 1.0
+
+        return out
+
+    def _mix_layers(self, *layers):
+        if not layers:
+            return array("h")
+        length = max(len(layer) for layer in layers)
+        mixed = array("h", [0] * length)
+        for layer in layers:
+            for i, sample in enumerate(layer):
+                mixed[i] += sample
+        for i, sample in enumerate(mixed):
+            mixed[i] = max(-32768, min(32767, sample))
+        return mixed
+
+    def _build_intro_song(self):
+        melody = [
+            ("E5", 0.14), ("G5", 0.14), ("B5", 0.14), ("E6", 0.20),
+            ("D6", 0.16), ("B5", 0.12), ("G5", 0.12), ("E5", 0.18),
+            ("R", 0.04),
+            ("F5", 0.14), ("A5", 0.14), ("C6", 0.14), ("F6", 0.20),
+            ("E6", 0.16), ("C6", 0.12), ("A5", 0.12), ("F5", 0.18),
+        ]
+
+        bass = [
+            ("E3", 0.28), ("E3", 0.28), ("B2", 0.28), ("E3", 0.28),
+            ("F3", 0.28), ("F3", 0.28), ("C3", 0.28), ("F3", 0.28),
+        ]
+
+        melody_pcm = array("h")
+        bass_pcm = array("h")
+
+        for note, dur in melody:
+            freq = self._note_to_freq(note)
+            melody_pcm.extend(self._render_note(freq, dur, wave="square", volume=0.20, pan=-0.15))
+
+        for note, dur in bass:
+            freq = self._note_to_freq(note)
+            bass_pcm.extend(self._render_note(freq, dur, wave="triangle", volume=0.16, pan=0.12))
+
+        mixed = self._mix_layers(melody_pcm, bass_pcm)
+        return pygame.mixer.Sound(buffer=mixed.tobytes())
+
+    def play_intro_song(self):
+        if not self.enabled or self.intro_sound is None:
+            return
+        self.intro_sound.set_volume(0.55)
+        self.intro_sound.play(loops=-1)
+
+    def stop_intro_song(self):
+        if not self.enabled or self.intro_sound is None:
+            return
+        self.intro_sound.stop()
 
 # ══════════════════════════════════════════════════════════════
 #  CARD CLASSES
@@ -1390,6 +1529,7 @@ class Renderer:
 
 class Game:
     def __init__(self):
+        pygame.mixer.pre_init(RetroAudio.SAMPLE_RATE, -16, 2, 512)
         pygame.init()
         pygame.display.set_caption("SABOTEUR - Retro Edition")
         self.window = pygame.display.set_mode((WIN_W, WIN_H))
@@ -1397,6 +1537,7 @@ class Game:
         self.scanlines = self._make_scanlines()
         self.clock = pygame.time.Clock()
         self.renderer = Renderer(self.surface)
+        self.audio = RetroAudio()
 
         self.state = "title"
         self.num_players = 4
@@ -1418,6 +1559,7 @@ class Game:
         self.ai_timer = 0
         self.AI_DELAY = 18
         self.running = True
+        self.audio.play_intro_song()
 
     def _reset_setup_names(self):
         self.player1_name = "Player 1"
@@ -1797,6 +1939,7 @@ class Game:
 
     def _start_game(self):
         names = [self.player1_name.strip(), self.player2_name.strip()]
+        self.audio.stop_intro_song()
         self.gs = GameState(self.num_players, self.num_humans, names)
         self.gs.setup_round()
         self.state = "game"
