@@ -58,6 +58,16 @@ Open the local URL shown by Vite (usually `http://localhost:5173`).
 
 ### 2) Plug in the web game build
 
+Build the web version with pygbag from the project root:
+
+```bash
+pip install pygbag
+set PYTHONUTF8=1
+python -m pygbag --build saboteur.py
+```
+
+Then copy generated files from `build/web/` into `web/public/saboteur-web/`.
+
 The iframe points to:
 
 `web/public/saboteur-web/index.html`

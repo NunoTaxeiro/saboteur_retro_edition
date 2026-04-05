@@ -1,4 +1,6 @@
 function App() {
+  const buildStamp = "20260405b";
+
   return (
     <div className="page">
       <header className="hero">
@@ -15,7 +17,7 @@ function App() {
         <section className="panel game-panel">
           <div className="panel-head">
             <h2>Playable Game</h2>
-            <a href="/saboteur-web/index.html" target="_blank" rel="noreferrer">
+            <a href={`/saboteur-web/index.html?v=${buildStamp}`} target="_blank" rel="noreferrer">
               Open standalone
             </a>
           </div>
@@ -23,8 +25,9 @@ function App() {
           <div className="game-shell">
             <iframe
               title="Saboteur Retro Edition"
-              src="/saboteur-web/index.html"
+              src={`/saboteur-web/index.html?v=${buildStamp}`}
               className="game-frame"
+              allow="autoplay; fullscreen; gamepad; xr-spatial-tracking"
             />
           </div>
         </section>
