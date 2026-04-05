@@ -917,12 +917,46 @@ class Renderer:
         cg = int(180 + 40 * pulse)
         cb = int(30 + 30 * pulse)
 
+        # ── Retro pixel-art logo frame ──────────────────────────────
+        frame_x, frame_y, frame_w, frame_h = INTERNAL_W // 2 - 118, 46, 236, 82
+        pygame.draw.rect(self.surf, C_UI_BORDER, (frame_x, frame_y, frame_w, frame_h), 1)
+        for cx, cy in [
+            (frame_x, frame_y), (frame_x + frame_w - 3, frame_y),
+            (frame_x, frame_y + frame_h - 3), (frame_x + frame_w - 3, frame_y + frame_h - 3),
+        ]:
+            pygame.draw.rect(self.surf, C_GOLD, (cx, cy, 3, 3))
+
+        # ── Main title: "SABOTEUR" with pixel drop-shadow ───────────
+        title_shadow = self.font_xl.render("SABOTEUR", True, (40, 32, 8))
+        self.surf.blit(title_shadow, (INTERNAL_W // 2 - title_shadow.get_width() // 2 + 2, 57))
         title = self.font_xl.render("SABOTEUR", True, (cr, cg, cb))
-        self.surf.blit(title, (INTERNAL_W // 2 - title.get_width() // 2, 60))
+        self.surf.blit(title, (INTERNAL_W // 2 - title.get_width() // 2, 55))
 
-        sub = self.font_md.render("The Dwarf Mining Game", True, C_TEXT_DIM)
-        self.surf.blit(sub, (INTERNAL_W // 2 - sub.get_width() // 2, 100))
+        # ── Pixel-art divider ──────────────────────────────────────
+        div_cx = INTERNAL_W // 2
+        for i, dx in enumerate(range(-84, 85, 4)):
+            col = C_GOLD if (i + self.tick // 8) % 3 != 0 else C_GOLD_DK
+            pygame.draw.rect(self.surf, col, (div_cx + dx, 96, 2, 1))
 
+        # ── Subtitle: "RETRO EDITION" in retro cyan ─────────────────
+        retro_cyan = (80, 220, 220)
+        retro_cyan_dk = (30, 100, 100)
+        sub_shadow = self.font_md.render("- RETRO EDITION -", True, retro_cyan_dk)
+        self.surf.blit(sub_shadow, (INTERNAL_W // 2 - sub_shadow.get_width() // 2 + 1, 103))
+        sub = self.font_md.render("- RETRO EDITION -", True, retro_cyan)
+        self.surf.blit(sub, (INTERNAL_W // 2 - sub.get_width() // 2, 102))
+
+        # ── Pixel-art divider (bottom of frame) ────────────────────
+        for i, dx in enumerate(range(-84, 85, 4)):
+            col = C_GOLD if (i + self.tick // 8) % 3 != 0 else C_GOLD_DK
+            pygame.draw.rect(self.surf, col, (div_cx + dx, 120, 2, 1))
+
+        # ── CRT scanline overlay on logo frame ──────────────────────
+        for scan_y in range(frame_y, frame_y + frame_h, 2):
+            pygame.draw.line(self.surf, (0, 0, 0),
+                             (frame_x + 1, scan_y + 1), (frame_x + frame_w - 2, scan_y + 1))
+
+        # ── Pickaxe icon ────────────────────────────────────────────
         pickaxe = [
             (0,-4),(1,-3),(2,-2),(3,-1),(4,0),(5,1),
             (1,-1),(2,0),(3,1),
