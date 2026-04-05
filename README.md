@@ -2,6 +2,13 @@
 
 A retro 8/16-bit implementation of the classic card game Saboteur by Frederic Moyersoen, built with Python and Pygame.
 
+## Latest Commit
+
+- **Commit ID:** d46638fd8ed995f99fc49a9e836404b17ac635dd
+- **Author:** NunoTaxeiro
+- **Date:** 2026-04-04
+- **Message:** [expand visible play area](https://github.com/NunoTaxeiro/saboteur_retro_edition/commit/d46638fd8ed995f99fc49a9e836404b17ac635dd)
+
 ## How to Play
 
 You are a dwarf -- either a **Gold Miner** digging tunnels to find treasure, or a **Saboteur** trying to block the miners. Your role is secret!
