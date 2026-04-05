@@ -1,5 +1,8 @@
 # SABOTEUR - Retro Edition
 
+<img width="1026" height="782" alt="saboteur_gui" src="https://github.com/user-attachments/assets/ccb70cf9-cf59-4dd5-be28-f1e2c5adee3a" />
+
+
 A retro 8/16-bit implementation of the classic card game Saboteur by Frederic Moyersoen, built with Python and Pygame.
 
 ## How to Play
