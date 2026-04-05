@@ -9,6 +9,7 @@ import pygame
 import random
 import sys
 import math
+import asyncio
 from collections import deque
 
 # ══════════════════════════════════════════════════════════════
@@ -1416,6 +1417,7 @@ class Game:
         self.map_reveal_timer = 0
         self.ai_timer = 0
         self.AI_DELAY = 18
+        self.running = True
 
     def _reset_setup_names(self):
         self.player1_name = "Player 1"
@@ -1428,18 +1430,32 @@ class Game:
         return s
 
     def run(self):
-        while True:
-            dt = self.clock.tick(FPS)
-            self.renderer.tick += 1
-            self._handle_events()
-            self._update()
-            self._render()
+        while self.running:
+            self._tick_once()
+
+    async def run_web(self):
+        while self.running:
+            self._tick_once()
+            await asyncio.sleep(0)
+
+    def _tick_once(self):
+        self.clock.tick(FPS)
+        self.renderer.tick += 1
+        self._handle_events()
+        self._update()
+        self._render()
+
+    def _request_quit(self):
+        self.running = False
+        pygame.quit()
+        if sys.platform != "emscripten":
+            sys.exit()
 
     def _handle_events(self):
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+                self._request_quit()
+                return
 
             if ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_ESCAPE:
@@ -1448,8 +1464,8 @@ class Game:
                     elif self.state == "game" and self.target_mode:
                         self._cancel_selection()
                     elif self.state in ("title", "game_end"):
-                        pygame.quit()
-                        sys.exit()
+                        self._request_quit()
+                        return
                     elif self.state == "setup":
                         self.state = "title"
                     elif self.state == "pass_device":
@@ -1864,6 +1880,47 @@ class Game:
 #  ENTRY POINT
 # ══════════════════════════════════════════════════════════════
 
-if __name__ == "__main__":
+def _is_web_runtime():
+    if sys.platform == "emscripten":
+        return True
+    try:
+        import platform as web_platform
+        return hasattr(web_platform, "window")
+    except Exception:
+        return False
+
+
+_WEB_GAME_TASK = None
+
+
+async def _run_web_game_with_error_overlay():
+    try:
+        game = Game()
+        await game.run_web()
+    except Exception as exc:
+        try:
+            import platform as web_platform
+            web_platform.window.infobox.style.display = "block"
+            web_platform.window.infobox.innerText = f"Saboteur error: {exc}"
+        except Exception:
+            pass
+        raise
+
+
+def _start_web_game_task():
+    global _WEB_GAME_TASK
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.get_event_loop()
+    _WEB_GAME_TASK = loop.create_task(_run_web_game_with_error_overlay())
+
+
+if _is_web_runtime():
+    try:
+        asyncio.run(_run_web_game_with_error_overlay())
+    except RuntimeError:
+        _start_web_game_task()
+elif __name__ == "__main__":
     game = Game()
     game.run()

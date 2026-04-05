@@ -42,6 +42,40 @@ pip install pygame
 python saboteur.py
 ```
 
+## React HTML Integration
+
+This repository now includes a React host page under `web/` that embeds the game in an HTML page using an iframe.
+
+### 1) Start the React page
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Open the local URL shown by Vite (usually `http://localhost:5173`).
+
+### 2) Plug in the web game build
+
+Build the web version with pygbag from the project root:
+
+```bash
+pip install pygbag
+set PYTHONUTF8=1
+python -m pygbag --build saboteur.py
+```
+
+Then copy generated files from `build/web/` into `web/public/saboteur-web/`.
+
+The iframe points to:
+
+`web/public/saboteur-web/index.html`
+
+Right now that path contains a placeholder page. Replace the contents of `web/public/saboteur-web/` with your generated browser build of `saboteur.py` (for example from a Pygame-to-web toolchain such as pygbag).
+
+Once copied, the game runs directly inside the React HTML page.
+
 ## Requirements
 - Python 3.8+
 - Pygame 2.5+
