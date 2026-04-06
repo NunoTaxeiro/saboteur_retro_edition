@@ -69,10 +69,14 @@ C_TUNNEL    = (194, 160, 110)
 C_TUNNEL_DEAD = (130, 95, 65)
 C_GOLD      = (255, 210, 60)
 C_GOLD_DK   = (200, 160, 30)
+C_GOLD_HL   = (255, 240, 140)
 C_START     = (60, 150, 60)
 C_START_DK  = (40, 100, 40)
 C_GOAL_HIDE = (90, 75, 110)
 C_STONE     = (85, 78, 68)
+C_COAL_DARK = (30, 30, 35)
+C_COAL_SHINE = (65, 65, 75)
+C_COAL_MID  = (45, 45, 55)
 C_TEXT      = (230, 230, 230)
 C_TEXT_DIM  = (130, 130, 130)
 C_TEXT_GOLD = (255, 220, 80)
@@ -1046,11 +1050,11 @@ class Renderer:
             cx, cy = size // 2, size // 2
             px = max(1, size // 15)
             if card.is_treasure:
-                nugget_colors = [C_GOLD, C_GOLD_DK, (255, 240, 140)]
+                nugget_colors = [C_GOLD, C_GOLD_DK, C_GOLD_HL]
                 Renderer._draw_pixel_sprite(s, Renderer._NUGGET_PIXELS,
                                             nugget_colors, cx, cy, px)
             else:
-                coal_colors = [(30, 30, 35), (65, 65, 75), (45, 45, 55)]
+                coal_colors = [C_COAL_DARK, C_COAL_SHINE, C_COAL_MID]
                 Renderer._draw_pixel_sprite(s, Renderer._COAL_PIXELS,
                                             coal_colors, cx, cy, px)
 
