@@ -1430,20 +1430,25 @@ class Renderer:
             self.surf.blit(txt, (mx, my + i * 12))
 
     def _draw_map_popup(self, is_treasure):
-        pw, ph = 160, 80
+        pw, ph = 160, 90
         px = INTERNAL_W // 2 - pw // 2
         py = INTERNAL_H // 2 - ph // 2
         pygame.draw.rect(self.surf, C_UI_BG, (px, py, pw, ph))
         pygame.draw.rect(self.surf, C_GOLD if is_treasure else C_STONE, (px, py, pw, ph), 2)
 
+        cx = px + pw // 2
         if is_treasure:
+            nugget_colors = [C_GOLD, C_GOLD_DK, C_GOLD_HL]
+            self._draw_pixel_sprite(self.surf, self._NUGGET_PIXELS, nugget_colors, cx, py + 32, 4)
             txt = self.font_lg.render("TREASURE!", True, C_GOLD)
         else:
+            coal_colors = [C_COAL_DARK, C_COAL_SHINE, C_COAL_MID]
+            self._draw_pixel_sprite(self.surf, self._COAL_PIXELS, coal_colors, cx, py + 32, 4)
             txt = self.font_lg.render("Just stone...", True, C_STONE)
-        self.surf.blit(txt, (px + pw // 2 - txt.get_width() // 2, py + 20))
+        self.surf.blit(txt, (cx - txt.get_width() // 2, py + 58))
 
         hint = self.font.render("(click to close)", True, C_TEXT_DIM)
-        self.surf.blit(hint, (px + pw // 2 - hint.get_width() // 2, py + 55))
+        self.surf.blit(hint, (cx - hint.get_width() // 2, py + 75))
 
     def _draw_target_selector(self, gs, selected_idx):
         player = gs.players[gs.current_player]
