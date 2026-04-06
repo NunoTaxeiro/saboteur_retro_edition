@@ -954,6 +954,45 @@ class Renderer:
     BOARD_Y = 52
     HAND_CARD_S = 34
 
+    # 8/16-bit gold nugget sprite (8×8 grid)
+    # 1=gold, 2=dark-gold, 3=highlight
+    _NUGGET_PIXELS = [
+        [0, 0, 0, 1, 2, 0, 0, 0],
+        [0, 0, 1, 2, 1, 1, 0, 0],
+        [0, 1, 2, 1, 1, 3, 1, 0],
+        [1, 1, 1, 2, 1, 1, 1, 0],
+        [0, 1, 1, 1, 2, 1, 1, 0],
+        [0, 1, 2, 1, 1, 1, 0, 0],
+        [0, 0, 1, 1, 2, 0, 0, 0],
+        [0, 0, 0, 1, 0, 0, 0, 0],
+    ]
+
+    # 8/16-bit coal sprite (8×8 grid)
+    # 1=coal-dark, 2=coal-shine, 3=coal-mid
+    _COAL_PIXELS = [
+        [0, 0, 1, 1, 0, 0, 0, 0],
+        [0, 1, 1, 2, 1, 0, 0, 0],
+        [0, 1, 2, 1, 1, 1, 0, 0],
+        [1, 1, 1, 2, 1, 1, 0, 0],
+        [1, 1, 2, 1, 1, 1, 1, 0],
+        [0, 1, 1, 1, 2, 1, 1, 0],
+        [0, 0, 1, 1, 1, 1, 0, 0],
+        [0, 0, 0, 1, 1, 0, 0, 0],
+    ]
+
+    @staticmethod
+    def _draw_pixel_sprite(surf, sprite, colors, cx, cy, px):
+        """Draw a pixel-art sprite centered at (cx, cy) with pixel size px."""
+        rows = len(sprite)
+        cols = len(sprite[0])
+        ox = cx - cols * px // 2
+        oy = cy - rows * px // 2
+        for r, row in enumerate(sprite):
+            for c, val in enumerate(row):
+                if val:
+                    pygame.draw.rect(surf, colors[val - 1],
+                                     (ox + c * px, oy + r * px, px, px))
+
     def __init__(self, surface):
         self.surf = surface
         self.font = pygame.font.Font(None, 14)
@@ -1004,10 +1043,16 @@ class Renderer:
             s.blit(txt, (size // 2 - txt.get_width() // 2, size // 2 - txt.get_height() // 2))
 
         if isinstance(card, GoalCard) and card.revealed:
+            cx, cy = size // 2, size // 2
+            px = max(1, size // 15)
             if card.is_treasure:
-                pygame.draw.rect(s, C_GOLD, (t + 2, t + 2, t - 4, t - 4))
+                nugget_colors = [C_GOLD, C_GOLD_DK, (255, 240, 140)]
+                Renderer._draw_pixel_sprite(s, Renderer._NUGGET_PIXELS,
+                                            nugget_colors, cx, cy, px)
             else:
-                pygame.draw.rect(s, C_STONE, (t + 2, t + 2, t - 4, t - 4))
+                coal_colors = [(30, 30, 35), (65, 65, 75), (45, 45, 55)]
+                Renderer._draw_pixel_sprite(s, Renderer._COAL_PIXELS,
+                                            coal_colors, cx, cy, px)
 
         pygame.draw.rect(s, (50, 42, 32), (0, 0, size, size), 1)
         if highlight:
