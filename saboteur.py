@@ -110,6 +110,7 @@ class RetroAudio:
     def __init__(self):
         self.enabled = False
         self.intro_sound = None
+        self.intro_playing = False
         self._setup_mixer()
         if self.enabled:
             self.intro_sound = self._build_intro_song()
@@ -226,15 +227,17 @@ class RetroAudio:
         return pygame.mixer.Sound(buffer=mixed.tobytes())
 
     def play_intro_song(self):
-        if not self.enabled or self.intro_sound is None:
+        if not self.enabled or self.intro_sound is None or self.intro_playing:
             return
         self.intro_sound.set_volume(0.55)
         self.intro_sound.play(loops=-1)
+        self.intro_playing = True
 
     def stop_intro_song(self):
         if not self.enabled or self.intro_sound is None:
             return
         self.intro_sound.stop()
+        self.intro_playing = False
 
 # ══════════════════════════════════════════════════════════════
 #  CARD CLASSES
@@ -999,11 +1002,25 @@ class Renderer:
 
     def __init__(self, surface):
         self.surf = surface
+        self._init_fonts()
+        self.tick = 0
+
+    def _init_fonts(self):
+        if not pygame.font.get_init():
+            pygame.font.init()
         self.font = pygame.font.Font(None, 14)
         self.font_md = pygame.font.Font(None, 18)
         self.font_lg = pygame.font.Font(None, 24)
         self.font_xl = pygame.font.Font(None, 36)
-        self.tick = 0
+
+    def _ensure_fonts(self):
+        if not pygame.font.get_init():
+            self._init_fonts()
+            return
+        try:
+            self.font.size(" ")
+        except pygame.error:
+            self._init_fonts()
 
     @property
     def board_h(self):
@@ -1099,7 +1116,8 @@ class Renderer:
         s.blit(txt, (size // 2 - txt.get_width() // 2, size // 2 - txt.get_height() // 2))
         return s
 
-    def draw_title(self):
+    def draw_title(self, audio_unlocked):
+        self._ensure_fonts()
         self.surf.fill(C_BG)
         pulse = (math.sin(self.tick * 0.06) + 1) / 2
         cr = int(200 + 55 * pulse)
@@ -1169,12 +1187,17 @@ class Renderer:
             txt = self.font_md.render("Press ENTER to start", True, C_TEXT)
             self.surf.blit(txt, (INTERNAL_W // 2 - txt.get_width() // 2, 220))
 
+        if not audio_unlocked:
+            audio_hint = self.font.render("Click or press any key to enable audio", True, C_TEXT_GOLD)
+            self.surf.blit(audio_hint, (INTERNAL_W // 2 - audio_hint.get_width() // 2, 244))
+
         credit = self.font.render("by Nuno Taxeiro", True, C_TEXT_DIM)
         self.surf.blit(credit, (INTERNAL_W // 2 - credit.get_width() // 2, 340))
         ver = self.font.render("v1.0 - Retro Edition", True, (80, 80, 80))
         self.surf.blit(ver, (INTERNAL_W // 2 - ver.get_width() // 2, 355))
 
     def draw_setup(self, num_players, num_humans, setup_row, player1_name, player2_name):
+        self._ensure_fonts()
         self.surf.fill(C_BG)
         title = self.font_lg.render("GAME SETUP", True, C_GOLD)
         self.surf.blit(title, (INTERNAL_W // 2 - title.get_width() // 2, 40))
@@ -1223,6 +1246,7 @@ class Renderer:
 
     def draw_game(self, gs, cam_x, cam_y, selected_card_idx, valid_positions, hover_grid,
                   phase, target_mode, map_reveal, map_reveal_timer):
+        self._ensure_fonts()
         self.surf.fill(C_BG)
         self._draw_top_bar(gs)
         self._draw_board(gs, cam_x, cam_y, valid_positions, hover_grid, selected_card_idx, phase)
@@ -1491,6 +1515,7 @@ class Renderer:
         self.surf.blit(cancel, (px + pw // 2 - cancel.get_width() // 2, py + ph - 14))
 
     def draw_pass_device(self, player_name):
+        self._ensure_fonts()
         self.surf.fill(C_BG)
 
         pw, ph = 300, 120
@@ -1514,6 +1539,7 @@ class Renderer:
         self.surf.blit(warn, (INTERNAL_W // 2 - warn.get_width() // 2, py + ph + 20))
 
     def draw_round_end(self, gs):
+        self._ensure_fonts()
         self.surf.fill(C_BG)
         if gs.miners_won:
             title = self.font_xl.render("GOLD FOUND!", True, C_GOLD)
@@ -1545,6 +1571,7 @@ class Renderer:
             self.surf.blit(cont, (INTERNAL_W // 2 - cont.get_width() // 2, 340))
 
     def draw_game_end(self, gs):
+        self._ensure_fonts()
         self.surf.fill(C_BG)
         pulse = (math.sin(self.tick * 0.08) + 1) / 2
 
@@ -1613,7 +1640,7 @@ class Game:
         self.ai_timer = 0
         self.AI_DELAY = 18
         self.running = True
-        self.audio.play_intro_song()
+        self.audio_unlocked = False
 
     def _reset_setup_names(self):
         self.player1_name = "Player 1"
@@ -1647,6 +1674,12 @@ class Game:
         if sys.platform != "emscripten":
             sys.exit()
 
+    def _unlock_audio(self):
+        if self.audio_unlocked:
+            return
+        self.audio_unlocked = True
+        self.audio.play_intro_song()
+
     def _handle_events(self):
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
@@ -1654,6 +1687,7 @@ class Game:
                 return
 
             if ev.type == pygame.KEYDOWN:
+                self._unlock_audio()
                 if ev.key == pygame.K_ESCAPE:
                     if self.state == "game" and self.phase != "select":
                         self._cancel_selection()
@@ -1735,12 +1769,17 @@ class Game:
                 elif self.state == "game":
                     self._handle_game_key(ev.key)
 
-            elif ev.type == pygame.MOUSEBUTTONDOWN and self.state == "game":
-                mx, my = ev.pos[0] // SCALE, ev.pos[1] // SCALE
-                if ev.button == 1:
-                    self._handle_left_click(mx, my)
-                elif ev.button == 3:
-                    self._handle_right_click(mx, my)
+            elif ev.type == pygame.MOUSEBUTTONDOWN:
+                self._unlock_audio()
+                if self.state == "game":
+                    mx, my = ev.pos[0] // SCALE, ev.pos[1] // SCALE
+                    if ev.button == 1:
+                        self._handle_left_click(mx, my)
+                    elif ev.button == 3:
+                        self._handle_right_click(mx, my)
+
+            elif ev.type == pygame.FINGERDOWN:
+                self._unlock_audio()
 
             elif ev.type == pygame.MOUSEMOTION and self.state == "game":
                 mx, my = ev.pos[0] // SCALE, ev.pos[1] // SCALE
@@ -2043,7 +2082,7 @@ class Game:
 
     def _render(self):
         if self.state == "title":
-            self.renderer.draw_title()
+            self.renderer.draw_title(self.audio_unlocked)
         elif self.state == "setup":
             self.renderer.draw_setup(
                 self.num_players,
@@ -2090,9 +2129,20 @@ def _is_web_runtime():
 _WEB_GAME_TASK = None
 
 
+def _hide_web_loading_overlay():
+    try:
+        import platform as web_platform
+        web_platform.window.infobox.style.display = "none"
+        web_platform.window.config.gui_divider = 1
+        web_platform.window.window_resize()
+    except Exception:
+        pass
+
+
 async def _run_web_game_with_error_overlay():
     try:
         game = Game()
+        _hide_web_loading_overlay()
         await game.run_web()
     except Exception as exc:
         try:

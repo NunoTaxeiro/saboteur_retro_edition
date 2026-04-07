@@ -59,25 +59,30 @@ npm run dev
 
 Open the local URL shown by Vite (usually `http://localhost:5173`).
 
-### 2) Plug in the web game build
+### 2) Build and publish the web game
 
-Build the web version with pygbag from the project root:
+Use the build script from the project root:
 
-```bash
+```powershell
 pip install pygbag
-set PYTHONUTF8=1
-python -m pygbag --build saboteur.py
+powershell -ExecutionPolicy Bypass -File .\scripts\build-web.ps1
 ```
 
-Then copy generated files from `build/web/` into `web/public/saboteur-web/`.
+What the script does:
+- rebuilds the lightweight pygbag package from the current `saboteur.py`
+- syncs it into `web_build_src/`
+- publishes versioned `.apk` and `.tar.gz` files into `web/public/saboteur-web/`
+- patches the generated wrapper HTML with the working browser settings
+- updates the React iframe cache stamp in `web/src/App.jsx`
 
-The iframe points to:
+Optional arguments:
 
-`web/public/saboteur-web/index.html`
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-web.ps1 -Stamp 20260406_custom
+powershell -ExecutionPolicy Bypass -File .\scripts\build-web.ps1 -PythonExe "C:\Path\To\python.exe"
+```
 
-Right now that path contains a placeholder page. Replace the contents of `web/public/saboteur-web/` with your generated browser build of `saboteur.py` (for example from a Pygame-to-web toolchain such as pygbag).
-
-Once copied, the game runs directly inside the React HTML page.
+After the script finishes, reload the Vite page and the iframe will point to the freshly published build in `web/public/saboteur-web/`.
 
 ## Requirements
 - Python 3.8+
