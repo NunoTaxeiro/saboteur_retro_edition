@@ -5,3 +5,8 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# Frontend dependencies and generated web artifacts
+web/node_modules/
+web/public/saboteur-web/*.apk
+web/public/saboteur-web/*.tar.gz
