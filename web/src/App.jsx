@@ -1,5 +1,5 @@
 function App() {
-  const buildStamp = "20260405b";
+  const buildStamp = "web_build_src_20260406g";
 
   return (
     <div className="page">
