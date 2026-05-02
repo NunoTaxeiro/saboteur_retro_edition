@@ -10,6 +10,8 @@ import random
 import sys
 import math
 import asyncio
+import sqlite3
+import os
 from array import array
 from collections import deque
 
@@ -1603,10 +1605,66 @@ class Renderer:
             txt = self.font_md.render("Press ENTER to play again | ESC to quit", True, C_TEXT)
             self.surf.blit(txt, (INTERNAL_W // 2 - txt.get_width() // 2, 340))
 
+    def draw_game_end_with_stats(self, gs, stats_db):
+        self.draw_game_end(gs)
+        miners_wins, saboteurs_wins = stats_db.get_totals()
+        total = miners_wins + saboteurs_wins
+        label = self.font_md.render("ALL-TIME ROUND STATS:", True, C_TEXT_GOLD)
+        self.surf.blit(label, (INTERNAL_W // 2 - label.get_width() // 2, 295))
+        miners_txt = self.font.render(f"Miners won:    {miners_wins:>4d}  ({100 * miners_wins // total if total else 0}%)",
+                                      True, C_MINER)
+        saboteurs_txt = self.font.render(f"Saboteurs won: {saboteurs_wins:>4d}  ({100 * saboteurs_wins // total if total else 0}%)",
+                                         True, C_SABOTEUR)
+        self.surf.blit(miners_txt, (INTERNAL_W // 2 - miners_txt.get_width() // 2, 313))
+        self.surf.blit(saboteurs_txt, (INTERNAL_W // 2 - saboteurs_txt.get_width() // 2, 326))
+
 
 # ══════════════════════════════════════════════════════════════
 #  MAIN GAME
 # ══════════════════════════════════════════════════════════════
+
+# ══════════════════════════════════════════════════════════════
+#  STATISTICS DATABASE
+# ══════════════════════════════════════════════════════════════
+
+class StatsDB:
+    """Persists miners vs saboteurs win counts using SQLite."""
+
+    def __init__(self, path: str = None):
+        if path is None:
+            path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saboteur_stats.db")
+        self._path = path
+        self._init_db()
+
+    def _init_db(self):
+        with sqlite3.connect(self._path) as con:
+            con.execute(
+                """
+                CREATE TABLE IF NOT EXISTS round_results (
+                    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    miners_won INTEGER NOT NULL,
+                    played_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+                )
+                """
+            )
+            con.commit()
+
+    def record_round(self, miners_won: bool):
+        with sqlite3.connect(self._path) as con:
+            con.execute(
+                "INSERT INTO round_results (miners_won) VALUES (?)",
+                (1 if miners_won else 0,),
+            )
+            con.commit()
+
+    def get_totals(self) -> tuple[int, int]:
+        """Return (miners_wins, saboteurs_wins) across all recorded rounds."""
+        with sqlite3.connect(self._path) as con:
+            row = con.execute(
+                "SELECT SUM(miners_won), SUM(1 - miners_won) FROM round_results"
+            ).fetchone()
+        return (row[0] or 0, row[1] or 0)
+
 
 class Game:
     def __init__(self):
@@ -1641,6 +1699,7 @@ class Game:
         self.AI_DELAY = 18
         self.running = True
         self.audio_unlocked = False
+        self.stats_db = StatsDB()
 
     def _reset_setup_names(self):
         self.player1_name = "Player 1"
@@ -2009,6 +2068,7 @@ class Game:
             self.gs.distribute_gold()
             self.gs.first_player = (self.gs.last_path_player + 1) % self.gs.num_players \
                 if self.gs.last_path_player >= 0 else 0
+            self.stats_db.record_round(self.gs.miners_won)
             self.state = "round_end"
             return
         self.gs.next_turn()
@@ -2069,6 +2129,7 @@ class Game:
             self.gs.distribute_gold()
             self.gs.first_player = (self.gs.last_path_player + 1) % self.gs.num_players \
                 if self.gs.last_path_player >= 0 else 0
+            self.stats_db.record_round(self.gs.miners_won)
             self.state = "round_end"
             return
 
@@ -2104,7 +2165,7 @@ class Game:
         elif self.state == "round_end":
             self.renderer.draw_round_end(self.gs)
         elif self.state == "game_end":
-            self.renderer.draw_game_end(self.gs)
+            self.renderer.draw_game_end_with_stats(self.gs, self.stats_db)
 
         scaled = pygame.transform.scale(self.surface, (WIN_W, WIN_H))
         self.window.blit(scaled, (0, 0))
